@@ -74,12 +74,15 @@
     <div v-if="showContentModal" class="modal-overlay" @click="closeContentModal">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
-          <h3>Admin Content</h3>
+          <h3>Algebra Content</h3>
           <button @click="closeContentModal" class="close-btn">&times;</button>
         </div>
         <div class="modal-body">
           <div v-if="loading" class="loading">
             Loading content...
+          </div>
+          <div v-else-if="error" class="error">
+            {{ error }}
           </div>
           <div v-else-if="contentData.length === 0" class="no-content">
             No content available
@@ -90,19 +93,13 @@
               :key="content.id" 
               class="content-item"
             >
-              <h4>{{ content.title }}</h4>
+              <h4>{{ content.title || 'Untitled Content' }}</h4>
               <p class="content-meta">
-                <span>Type: {{ content.type }}</span>
-                <span>Created: {{ formatDate(content.createdAt) }}</span>
+                <span class="type-badge" :class="content.type">{{ content.type || 'lesson' }}</span>
+                <span v-if="content.createdAt">Created: {{ formatDate(content.createdAt) }}</span>
               </p>
-              <div class="content-body" v-html="content.body"></div>
-              <div v-if="content.attachments && content.attachments.length > 0" class="attachments">
-                <h5>Attachments:</h5>
-                <ul>
-                  <li v-for="attachment in content.attachments" :key="attachment.id">
-                    <a :href="attachment.url" target="_blank">{{ attachment.name }}</a>
-                  </li>
-                </ul>
+              <div class="content-body">
+                <p>{{ content.description || 'No description available' }}</p>
               </div>
             </div>
           </div>
@@ -115,6 +112,8 @@
 <script>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { db } from '../../firebase'
+import { collection, getDocs, orderBy, query } from 'firebase/firestore'
 
 export default {
   setup() {
@@ -122,6 +121,7 @@ export default {
     const showContentModal = ref(false)
     const contentData = ref([])
     const loading = ref(false)
+    const error = ref('')
     
     const topics = ref([
       {
@@ -231,65 +231,60 @@ export default {
     const viewContent = async () => {
       showContentModal.value = true
       loading.value = true
+      error.value = ''
       
       try {
-        // Replace this with your actual API call to fetch content from database
-        // Example: const response = await fetch('/api/content')
-        // const data = await response.json()
-        
-        // Mock data for demonstration - replace with actual database call
-        const mockData = await fetchContentFromDatabase()
-        contentData.value = mockData
-        
-      } catch (error) {
-        console.error('Error fetching content:', error)
-        contentData.value = []
+        await fetchContentFromDatabase()
+      } catch (err) {
+        console.error('Error fetching content:', err)
+        error.value = 'Failed to load content. Please try again.'
       } finally {
         loading.value = false
       }
     }
     
     const fetchContentFromDatabase = async () => {
-      // This is a mock function. Replace with your actual database call
-      // Example using Firebase Firestore:
-      // const db = getFirestore()
-      // const contentCollection = collection(db, 'content')
-      // const contentSnapshot = await getDocs(contentCollection)
-      // return contentSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-      
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          resolve([
-            {
-              id: '1',
-              title: 'Advanced Algebra Techniques',
-              type: 'Tutorial',
-              body: '<p>This content covers advanced techniques for solving complex algebraic equations...</p>',
-              createdAt: new Date('2024-01-15'),
-              attachments: [
-                { id: 'a1', name: 'algebra-formulas.pdf', url: '/downloads/algebra-formulas.pdf' }
-              ]
-            },
-            {
-              id: '2',
-              title: 'Problem Solving Strategies',
-              type: 'Guide',
-              body: '<p>Learn effective strategies for approaching difficult algebraic problems...</p>',
-              createdAt: new Date('2024-01-20'),
-              attachments: []
-            }
-          ])
-        }, 1000)
-      })
+      try {
+        const contentCollection = collection(db, 'content')
+        const contentQuery = query(contentCollection)
+        const querySnapshot = await getDocs(contentQuery)
+        
+        contentData.value = querySnapshot.docs.map(doc => {
+          const data = doc.data()
+          return {
+            id: doc.id,
+            title: data.title || 'Untitled Content',
+            description: data.description || 'No description available',
+            type: data.type || 'lesson',
+            createdAt: data.createdAt || null
+          }
+        })
+        
+      } catch (err) {
+        console.error('Error fetching content:', err)
+        throw err
+      }
     }
     
     const closeContentModal = () => {
       showContentModal.value = false
       contentData.value = []
+      error.value = ''
     }
     
-    const formatDate = (date) => {
-      return new Date(date).toLocaleDateString()
+    const formatDate = (timestamp) => {
+      if (!timestamp) return 'Unknown'
+      
+      let date
+      if (timestamp && typeof timestamp.toDate === 'function') {
+        date = timestamp.toDate()
+      } else if (timestamp instanceof Date) {
+        date = timestamp
+      } else {
+        date = new Date(timestamp)
+      }
+      
+      return date.toLocaleDateString()
     }
     
     const getProgressStyle = (progress) => {
@@ -300,7 +295,6 @@ export default {
     }
     
     const getVideoId = (url) => {
-      // Extract video ID from both regular YouTube URLs and embed URLs
       const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
       const match = url.match(regExp);
       return (match && match[2].length === 11) ? match[2] : null;
@@ -313,6 +307,7 @@ export default {
       showContentModal,
       contentData,
       loading,
+      error,
       setActiveTopic,
       completeTopic,
       goToPractice,
@@ -591,12 +586,21 @@ export default {
   text-align: center;
   padding: 40px;
   color: #7f8c8d;
+  font-size: 1.1rem;
+}
+
+.error {
+  text-align: center;
+  padding: 40px;
+  color: #e74c3c;
+  font-size: 1.1rem;
 }
 
 .no-content {
   text-align: center;
   padding: 40px;
   color: #7f8c8d;
+  font-size: 1.1rem;
 }
 
 .content-list {
@@ -610,48 +614,63 @@ export default {
   border-radius: 8px;
   padding: 20px;
   background-color: #f8f9fa;
+  transition: transform 0.2s;
+}
+
+.content-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .content-item h4 {
   margin: 0 0 10px 0;
   color: #2c3e50;
+  font-size: 1.2rem;
 }
 
 .content-meta {
   display: flex;
   gap: 20px;
   margin-bottom: 15px;
+  align-items: center;
+}
+
+.content-meta span {
   font-size: 0.9rem;
   color: #7f8c8d;
 }
 
+.type-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.type-badge.lesson {
+  background-color: #3498db;
+  color: white;
+}
+
+.type-badge.exercise {
+  background-color: #2ecc71;
+  color: white;
+}
+
+.type-badge.quiz {
+  background-color: #e67e22;
+  color: white;
+}
+
 .content-body {
   line-height: 1.6;
-  margin-bottom: 15px;
 }
 
-.attachments {
-  border-top: 1px solid #ddd;
-  padding-top: 15px;
-}
-
-.attachments h5 {
-  margin: 0 0 10px 0;
-  color: #2c3e50;
-}
-
-.attachments ul {
+.content-body p {
   margin: 0;
-  padding-left: 20px;
-}
-
-.attachments a {
-  color: #3498db;
-  text-decoration: none;
-}
-
-.attachments a:hover {
-  text-decoration: underline;
+  color: #2c3e50;
 }
 
 @media (max-width: 768px) {
@@ -677,6 +696,7 @@ export default {
   .content-meta {
     flex-direction: column;
     gap: 5px;
+    align-items: flex-start;
   }
 }
 </style>

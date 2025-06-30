@@ -3,6 +3,9 @@
     <div class="module-header">
       <h1>Learn Algebra</h1>
       <p>Explore interactive lessons to master algebraic concepts</p>
+      <button @click="viewContent" class="view-content-btn">
+        View Content
+      </button>
     </div>
     
     <div class="module-content">
@@ -62,12 +65,46 @@
             >
               Practice Now
             </button>
-            <button 
-              @click="viewFromDatabase(activeTopicData.id)" 
-              class="database-btn"
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Content Modal -->
+    <div v-if="showContentModal" class="modal-overlay" @click="closeContentModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>Admin Content</h3>
+          <button @click="closeContentModal" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div v-if="loading" class="loading">
+            Loading content...
+          </div>
+          <div v-else-if="contentData.length === 0" class="no-content">
+            No content available
+          </div>
+          <div v-else class="content-list">
+            <div 
+              v-for="content in contentData" 
+              :key="content.id" 
+              class="content-item"
             >
-              View From Database
-            </button>
+              <h4>{{ content.title }}</h4>
+              <p class="content-meta">
+                <span>Type: {{ content.type }}</span>
+                <span>Created: {{ formatDate(content.createdAt) }}</span>
+              </p>
+              <div class="content-body" v-html="content.body"></div>
+              <div v-if="content.attachments && content.attachments.length > 0" class="attachments">
+                <h5>Attachments:</h5>
+                <ul>
+                  <li v-for="attachment in content.attachments" :key="attachment.id">
+                    <a :href="attachment.url" target="_blank">{{ attachment.name }}</a>
+                  </li>
+                </ul>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -82,6 +119,10 @@ import { useRouter } from 'vue-router'
 export default {
   setup() {
     const router = useRouter()
+    const showContentModal = ref(false)
+    const contentData = ref([])
+    const loading = ref(false)
+    
     const topics = ref([
       {
         id: 'linear-equations',
@@ -187,11 +228,68 @@ export default {
       router.push(`/student/practice?topic=${topicId}`)
     }
     
-    const viewFromDatabase = (topicId) => {
-      // Here you would typically make an API call to fetch content from your database
-      // For now, we'll just log it and show an alert
-      console.log(`Fetching content for ${topicId} from database...`)
-      alert(`Fetching additional content for ${topicId} from database...`)
+    const viewContent = async () => {
+      showContentModal.value = true
+      loading.value = true
+      
+      try {
+        // Replace this with your actual API call to fetch content from database
+        // Example: const response = await fetch('/api/content')
+        // const data = await response.json()
+        
+        // Mock data for demonstration - replace with actual database call
+        const mockData = await fetchContentFromDatabase()
+        contentData.value = mockData
+        
+      } catch (error) {
+        console.error('Error fetching content:', error)
+        contentData.value = []
+      } finally {
+        loading.value = false
+      }
+    }
+    
+    const fetchContentFromDatabase = async () => {
+      // This is a mock function. Replace with your actual database call
+      // Example using Firebase Firestore:
+      // const db = getFirestore()
+      // const contentCollection = collection(db, 'content')
+      // const contentSnapshot = await getDocs(contentCollection)
+      // return contentSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+      
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve([
+            {
+              id: '1',
+              title: 'Advanced Algebra Techniques',
+              type: 'Tutorial',
+              body: '<p>This content covers advanced techniques for solving complex algebraic equations...</p>',
+              createdAt: new Date('2024-01-15'),
+              attachments: [
+                { id: 'a1', name: 'algebra-formulas.pdf', url: '/downloads/algebra-formulas.pdf' }
+              ]
+            },
+            {
+              id: '2',
+              title: 'Problem Solving Strategies',
+              type: 'Guide',
+              body: '<p>Learn effective strategies for approaching difficult algebraic problems...</p>',
+              createdAt: new Date('2024-01-20'),
+              attachments: []
+            }
+          ])
+        }, 1000)
+      })
+    }
+    
+    const closeContentModal = () => {
+      showContentModal.value = false
+      contentData.value = []
+    }
+    
+    const formatDate = (date) => {
+      return new Date(date).toLocaleDateString()
     }
     
     const getProgressStyle = (progress) => {
@@ -212,10 +310,15 @@ export default {
       topics,
       activeTopic,
       activeTopicData,
+      showContentModal,
+      contentData,
+      loading,
       setActiveTopic,
       completeTopic,
       goToPractice,
-      viewFromDatabase,
+      viewContent,
+      closeContentModal,
+      formatDate,
       getProgressStyle,
       getVideoId
     }
@@ -230,6 +333,13 @@ export default {
 
 .module-header {
   margin-bottom: 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.module-header div {
+  flex: 1;
 }
 
 .module-header h1 {
@@ -240,6 +350,24 @@ export default {
 .module-header p {
   color: #7f8c8d;
   margin: 0;
+}
+
+.view-content-btn {
+  padding: 12px 20px;
+  background-color: #9b59b6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s;
+  box-shadow: 0 2px 4px rgba(155, 89, 182, 0.3);
+}
+
+.view-content-btn:hover {
+  background-color: #8e44ad;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(155, 89, 182, 0.4);
 }
 
 .module-content {
@@ -397,27 +525,158 @@ export default {
   background-color: #2980b9;
 }
 
-.database-btn {
-  padding: 10px 15px;
-  background-color: #9b59b6;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.3s;
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
 }
 
-.database-btn:hover {
-  background-color: #8e44ad;
+.modal-content {
+  background: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 800px;
+  max-height: 80vh;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+  padding: 20px;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f8f9fa;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: #2c3e50;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #7f8c8d;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.close-btn:hover {
+  color: #2c3e50;
+}
+
+.modal-body {
+  padding: 20px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #7f8c8d;
+}
+
+.no-content {
+  text-align: center;
+  padding: 40px;
+  color: #7f8c8d;
+}
+
+.content-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.content-item {
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 20px;
+  background-color: #f8f9fa;
+}
+
+.content-item h4 {
+  margin: 0 0 10px 0;
+  color: #2c3e50;
+}
+
+.content-meta {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 15px;
+  font-size: 0.9rem;
+  color: #7f8c8d;
+}
+
+.content-body {
+  line-height: 1.6;
+  margin-bottom: 15px;
+}
+
+.attachments {
+  border-top: 1px solid #ddd;
+  padding-top: 15px;
+}
+
+.attachments h5 {
+  margin: 0 0 10px 0;
+  color: #2c3e50;
+}
+
+.attachments ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.attachments a {
+  color: #3498db;
+  text-decoration: none;
+}
+
+.attachments a:hover {
+  text-decoration: underline;
 }
 
 @media (max-width: 768px) {
+  .module-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+  }
+  
   .module-content {
     flex-direction: column;
   }
   
   .topics-list {
     width: 100%;
+  }
+  
+  .modal-content {
+    width: 95%;
+    margin: 10px;
+  }
+  
+  .content-meta {
+    flex-direction: column;
+    gap: 5px;
   }
 }
 </style>

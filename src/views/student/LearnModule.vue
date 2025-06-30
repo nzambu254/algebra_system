@@ -40,7 +40,7 @@
             <iframe 
               width="100%" 
               height="400" 
-              :src="activeTopicData.video" 
+              :src="'https://www.youtube.com/embed/' + getVideoId(activeTopicData.video)" 
               frameborder="0" 
               allowfullscreen
             ></iframe>
@@ -61,6 +61,12 @@
               class="practice-btn"
             >
               Practice Now
+            </button>
+            <button 
+              @click="viewFromDatabase(activeTopicData.id)" 
+              class="database-btn"
+            >
+              View From Database
             </button>
           </div>
         </div>
@@ -83,7 +89,7 @@ export default {
         shortDesc: 'Solving equations with one variable',
         icon: '🧮',
         progress: 75,
-        video: 'https://www.youtube.com/embed/9DxDFf9B3pc',
+        video: 'https://www.youtube.com/watch?v=Ft2_QtXAnh8',
         content: `
           <h3>Understanding Linear Equations</h3>
           <p>A linear equation is an equation for a straight line. The general form is:</p>
@@ -137,7 +143,7 @@ export default {
         shortDesc: 'Working with polynomial expressions',
         icon: '📈',
         progress: 30,
-        video: 'https://www.youtube.com/embed/v8Y8ByaWPH8',
+        video: 'https://www.youtube.com/watch?v=nPPNgin7W7Y',
         content: `
           <h3>Understanding Polynomials</h3>
           <p>A polynomial is an expression consisting of variables and coefficients, that involves only the operations of addition, subtraction, multiplication, and non-negative integer exponents.</p>
@@ -181,11 +187,25 @@ export default {
       router.push(`/student/practice?topic=${topicId}`)
     }
     
+    const viewFromDatabase = (topicId) => {
+      // Here you would typically make an API call to fetch content from your database
+      // For now, we'll just log it and show an alert
+      console.log(`Fetching content for ${topicId} from database...`)
+      alert(`Fetching additional content for ${topicId} from database...`)
+    }
+    
     const getProgressStyle = (progress) => {
       const degree = (progress / 100) * 360
       return {
         background: `conic-gradient(#2ecc71 ${degree}deg, #ecf0f1 ${degree}deg 360deg)`
       }
+    }
+    
+    const getVideoId = (url) => {
+      // Extract video ID from both regular YouTube URLs and embed URLs
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+      const match = url.match(regExp);
+      return (match && match[2].length === 11) ? match[2] : null;
     }
     
     return {
@@ -195,7 +215,9 @@ export default {
       setActiveTopic,
       completeTopic,
       goToPractice,
-      getProgressStyle
+      viewFromDatabase,
+      getProgressStyle,
+      getVideoId
     }
   }
 }
@@ -354,6 +376,11 @@ export default {
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.complete-btn:hover {
+  background-color: #27ae60;
 }
 
 .practice-btn {
@@ -363,6 +390,25 @@ export default {
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.practice-btn:hover {
+  background-color: #2980b9;
+}
+
+.database-btn {
+  padding: 10px 15px;
+  background-color: #9b59b6;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.database-btn:hover {
+  background-color: #8e44ad;
 }
 
 @media (max-width: 768px) {

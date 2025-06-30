@@ -16,7 +16,10 @@ const routes = [
     path: '/',
     name: 'Home',
     component: Home,
-    meta: { requiresGuest: true }
+    meta: { 
+      requiresGuest: true,
+      hideNavbar: true 
+    }
   },
   // Admin routes
   {
@@ -73,7 +76,10 @@ const routes = [
     path: '/auth',
     name: 'Auth',
     component: () => import('../views/Auth.vue'),
-    meta: { requiresGuest: true }
+    meta: { 
+      requiresGuest: true,
+      hideNavbar: true 
+    }
   },
   // Catch-all redirect
   {

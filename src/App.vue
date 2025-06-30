@@ -1,17 +1,18 @@
 <template>
   <div class="app-container">
     <TopNavBar 
+      v-if="showNavBar"
       :user="currentUser"
       @logout="handleLogout"
     />
     
     <div class="main-content">
       <Sidebar 
-        v-if="isAuthenticated"
+        v-if="isAuthenticated && showNavBar"
         :isAdmin="isAdmin"
       />
       
-      <div class="content-wrapper">
+      <div class="content-wrapper" :class="{ 'full-width': !showNavBar }">
         <router-view />
       </div>
     </div>
@@ -37,6 +38,11 @@ export default {
     const isAuthenticated = ref(false)
     const isAdmin = ref(false)
     const authInitialized = ref(false)
+
+    const hideNavBarRoutes = ['/', '/auth', '/register', '/forgot-password']
+    const showNavBar = computed(() => {
+      return !hideNavBarRoutes.includes(route.path)
+    })
 
     onMounted(() => {
       auth.onAuthStateChanged(user => {
@@ -113,6 +119,7 @@ export default {
       currentUser,
       isAuthenticated,
       isAdmin,
+      showNavBar,
       handleLogout
     }
   }
@@ -158,6 +165,12 @@ body {
   transition: all 0.3s ease;
   overflow-y: auto;
   min-height: 100%;
+}
+
+/* Full width content when nav is hidden */
+.content-wrapper.full-width {
+  margin-left: 0;
+  min-height: 100vh;
 }
 
 /* When sidebar is present */

@@ -17,7 +17,6 @@
           <tr>
             <th>Email</th>
             <th>Role</th>
-            <th>Status</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -26,9 +25,6 @@
             <td>{{ user.email }}</td>
             <td>
               <span :class="user.role">{{ user.role }}</span>
-            </td>
-            <td>
-              <span :class="user.status">{{ user.status }}</span>
             </td>
             <td>
               <button @click="editUser(user)" class="edit-btn">Edit</button>
@@ -52,14 +48,6 @@
             <select v-model="currentUser.role">
               <option value="admin">Admin</option>
               <option value="student">Student</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Status</label>
-            <select v-model="currentUser.status">
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="suspended">Suspended</option>
             </select>
           </div>
           <div class="form-actions">
@@ -86,8 +74,7 @@ export default {
     const currentUser = ref({
       id: '',
       email: '',
-      role: 'student',
-      status: 'active'
+      role: 'student'
     })
 
     const fetchUsers = async () => {
@@ -122,8 +109,7 @@ export default {
     const saveUser = async () => {
       try {
         await updateDoc(doc(db, 'users', currentUser.value.id), {
-          role: currentUser.value.role,
-          status: currentUser.value.status
+          role: currentUser.value.role
         })
         fetchUsers()
         showEditModal.value = false
@@ -219,18 +205,6 @@ span.student {
   padding: 3px 8px;
   border-radius: 4px;
   font-size: 0.8rem;
-}
-
-span.active {
-  color: #2ecc71;
-}
-
-span.inactive {
-  color: #f39c12;
-}
-
-span.suspended {
-  color: #e74c3c;
 }
 
 .edit-btn {

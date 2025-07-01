@@ -17,9 +17,90 @@
             {{ topic.title }}
           </option>
         </select>
+        <button @click="showGraphExample" class="graph-btn">
+          Solve Equations on Graph
+        </button>
       </div>
       
-      <div v-if="currentQuestion" class="question-container">
+      <div v-if="showGraph" class="graph-container">
+        <h3>Graphing Linear Equations</h3>
+        <div class="graph-instructions">
+          <p>Enter a linear equation in the form <strong>y = mx + b</strong> or <strong>ax + by = c</strong>:</p>
+          <div class="equation-input">
+            <input
+              v-model="userEquation"
+              type="text"
+              placeholder="e.g., y = 2x + 3 or 3x + 2y = 6"
+              @keyup.enter="plotEquation"
+            >
+            <button @click="plotEquation" class="plot-btn">
+              Plot Graph
+            </button>
+          </div>
+          <div v-if="equationError" class="error-message">
+            {{ equationError }}
+          </div>
+        </div>
+        
+        <div v-if="equationData.points.length > 0" class="graph-table">
+          <table>
+            <thead>
+              <tr>
+                <th>x</th>
+                <th>y</th>
+                <th>(x, y)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(point, index) in equationData.points" :key="index">
+                <td>{{ point.x }}</td>
+                <td>{{ point.y.toFixed(2) }}</td>
+                <td>({{ point.x }}, {{ point.y.toFixed(2) }})</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        
+        <div class="graph-visualization">
+          <div class="graph-axis">
+            <div class="y-axis"></div>
+            <div class="x-axis"></div>
+            <div class="origin">0</div>
+            
+            <!-- Grid lines -->
+            <div v-for="i in [-5, -4, -3, -2, -1, 1, 2, 3, 4, 5]" :key="'x'+i" 
+                 class="grid-line vertical" :style="{ left: 50 + i*10 + '%' }"></div>
+            <div v-for="i in [-5, -4, -3, -2, -1, 1, 2, 3, 4, 5]" :key="'y'+i" 
+                 class="grid-line horizontal" :style="{ top: 50 - i*10 + '%' }"></div>
+            
+            <!-- Points -->
+            <div 
+              v-for="(point, index) in equationData.points" 
+              :key="'point'+index"
+              class="point"
+              :style="{
+                left: 50 + (point.x * 10) + '%',
+                top: 50 - (point.y * 10) + '%'
+              }"
+              :data-point="`(${point.x}, ${point.y.toFixed(2)})`"
+            ></div>
+            
+            <!-- Line -->
+            <div 
+              v-if="equationData.points.length > 1" 
+              class="graph-line" 
+              :style="lineStyle"
+            ></div>
+          </div>
+        </div>
+        
+        <button @click="hideGraph" class="back-btn">
+          Back to Practice
+        </button>
+      </div>
+      
+      <div v-if="currentQuestion && !showGraph" class="question-container">
+        <!-- Existing question container content remains the same -->
         <div class="question-progress">
           Question {{ currentQuestionIndex + 1 }} of {{ questions.length }}
         </div>
@@ -84,7 +165,7 @@
         </div>
       </div>
       
-      <div v-else class="results-container">
+      <div v-if="practiceCompleted && !showGraph" class="results-container">
         <h2>Practice Results</h2>
         <div class="score-display">
           <div class="score-circle">
@@ -135,6 +216,155 @@ export default {
     const showFeedback = ref(false)
     const correctAnswers = ref(0)
     const practiceCompleted = ref(false)
+    const showGraph = ref(false)
+    const userEquation = ref('')
+    const equationError = ref('')
+    
+    const equationData = ref({
+      points: [],
+      slope: 0,
+      intercept: 0
+    })
+    
+    const lineStyle = computed(() => {
+      if (equationData.value.points.length < 2) return {}
+      
+      // Get the first and last points
+      const firstPoint = equationData.value.points[0]
+      const lastPoint = equationData.value.points[equationData.value.points.length - 1]
+      
+      // Convert points to graph coordinates
+      const x1 = 50 + (firstPoint.x * 10)
+      const y1 = 50 - (firstPoint.y * 10)
+      const x2 = 50 + (lastPoint.x * 10)
+      const y2 = 50 - (lastPoint.y * 10)
+      
+      // Calculate line length and angle
+      const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2))
+      const angle = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI
+      
+      return {
+        width: `${length}%`,
+        left: `${x1}%`,
+        top: `${y1}%`,
+        transform: `rotate(${angle}deg)`,
+        'transform-origin': '0 0'
+      }
+    })
+    
+    const parseEquation = (equation) => {
+      equationError.value = ''
+      equation = equation.replace(/\s+/g, '') // Remove all whitespace
+      
+      // Handle y = mx + b form
+      if (equation.includes('y=')) {
+        const parts = equation.split('y=')[1].split(/([+-])/)
+        if (parts.length < 1) {
+          equationError.value = 'Invalid equation format. Use y=mx+b or ax+by=c'
+          return false
+        }
+        
+        // Reconstruct parts with operators
+        let mxPart = parts[0]
+        let bPart = parts.length > 1 ? parts[1] + parts[2] : ''
+        
+        // Handle cases like y=2x or y=-3x
+        if (!mxPart.includes('x')) {
+          if (mxPart === '') mxPart = '1x' // y=x case
+          else if (mxPart === '-') mxPart = '-1x' // y=-x case
+          else mxPart += 'x' // y=2 → y=2x
+        }
+        
+        // Extract slope (m)
+        const slopeStr = mxPart.replace('x', '')
+        let slope = 0
+        if (slopeStr === '+' || slopeStr === '') slope = 1
+        else if (slopeStr === '-') slope = -1
+        else slope = parseFloat(slopeStr)
+        
+        // Extract intercept (b)
+        let intercept = 0
+        if (bPart) {
+          intercept = parseFloat(bPart)
+        }
+        
+        equationData.value = {
+          slope,
+          intercept,
+          points: []
+        }
+        return true
+      }
+      // Handle ax + by = c form
+      else if (equation.includes('x') && equation.includes('y')) {
+        const parts = equation.split(/([+-])/)
+        if (parts.length < 3) {
+          equationError.value = 'Invalid equation format. Use y=mx+b or ax+by=c'
+          return false
+        }
+        
+        let a = 0, b = 0, c = 0
+        const equationParts = equation.split('=')
+        if (equationParts.length !== 2) {
+          equationError.value = 'Equation must contain exactly one equals sign (=)'
+          return false
+        }
+        
+        const leftSide = equationParts[0]
+        c = parseFloat(equationParts[1])
+        
+        // Extract coefficients
+        const xMatch = leftSide.match(/([+-]?\d*)x/)
+        const yMatch = leftSide.match(/([+-]?\d*)y/)
+        
+        a = xMatch ? parseFloat(xMatch[1] || (xMatch[1] === '-' ? -1 : 1)) : 0
+        b = yMatch ? parseFloat(yMatch[1] || (yMatch[1] === '-' ? -1 : 1)) : 0
+        
+        if (b === 0) {
+          equationError.value = 'Invalid equation: y coefficient cannot be zero'
+          return false
+        }
+        
+        // Convert to slope-intercept form
+        const slope = -a / b
+        const intercept = c / b
+        
+        equationData.value = {
+          slope,
+          intercept,
+          points: []
+        }
+        return true
+      }
+      else {
+        equationError.value = 'Unsupported equation format. Use y=mx+b or ax+by=c'
+        return false
+      }
+    }
+    
+    const calculatePoints = () => {
+      const points = []
+      const { slope, intercept } = equationData.value
+      
+      // Calculate y for x values from -5 to 5
+      for (let x = -5; x <= 5; x++) {
+        const y = slope * x + intercept
+        points.push({ x, y })
+      }
+      
+      equationData.value.points = points
+    }
+    
+    const plotEquation = () => {
+      if (!userEquation.value) {
+        equationError.value = 'Please enter an equation'
+        return
+      }
+      
+      if (parseEquation(userEquation.value)) {
+        calculatePoints()
+      }
+    }
     
     const generateQuestions = (topic) => {
       // In a real app, you would fetch these from a database
@@ -252,10 +482,33 @@ export default {
       showFeedback.value = false
       correctAnswers.value = 0
       practiceCompleted.value = false
+      showGraph.value = false
+      userEquation.value = ''
+      equationError.value = ''
+      equationData.value = {
+        points: [],
+        slope: 0,
+        intercept: 0
+      }
     }
     
     const goToLearn = () => {
       router.push(`/student/learn?topic=${selectedTopic.value}`)
+    }
+    
+    const showGraphExample = () => {
+      showGraph.value = true
+      userEquation.value = ''
+      equationError.value = ''
+      equationData.value = {
+        points: [],
+        slope: 0,
+        intercept: 0
+      }
+    }
+    
+    const hideGraph = () => {
+      showGraph.value = false
     }
     
     watch(selectedTopic, (newTopic) => {
@@ -278,11 +531,19 @@ export default {
       isLastQuestion,
       correctAnswers,
       practiceCompleted,
+      showGraph,
+      userEquation,
+      equationError,
+      equationData,
+      lineStyle,
       selectAnswer,
       checkAnswer,
       nextQuestion,
       restartPractice,
-      goToLearn
+      goToLearn,
+      showGraphExample,
+      hideGraph,
+      plotEquation
     }
   }
 }
@@ -316,6 +577,10 @@ export default {
 
 .topic-selector {
   margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
 }
 
 .topic-selector label {
@@ -327,6 +592,190 @@ export default {
   padding: 8px 15px;
   border-radius: 4px;
   border: 1px solid #ddd;
+}
+
+.graph-btn {
+  padding: 8px 15px;
+  background-color: #9b59b6;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.graph-btn:hover {
+  background-color: #8e44ad;
+}
+
+.graph-container {
+  margin-top: 20px;
+  padding: 20px;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+}
+
+.graph-instructions {
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #f0f0f0;
+  border-radius: 4px;
+}
+
+.equation-input {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.equation-input input {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.plot-btn {
+  padding: 10px 20px;
+  background-color: #3498db;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.plot-btn:hover {
+  background-color: #2980b9;
+}
+
+.error-message {
+  color: #e74c3c;
+  margin-top: 10px;
+  font-weight: bold;
+}
+
+.graph-table {
+  margin: 20px 0;
+  overflow-x: auto;
+}
+
+.graph-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.graph-table th, .graph-table td {
+  border: 1px solid #ddd;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.graph-table th {
+  background-color: #f2f2f2;
+}
+
+.graph-visualization {
+  margin: 30px 0;
+  position: relative;
+  height: 400px;
+  border: 1px solid #ddd;
+  background-color: white;
+}
+
+.graph-axis {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.x-axis {
+  position: absolute;
+  width: 90%;
+  height: 2px;
+  background-color: #333;
+  left: 5%;
+  top: 50%;
+}
+
+.y-axis {
+  position: absolute;
+  width: 2px;
+  height: 90%;
+  background-color: #333;
+  left: 50%;
+  top: 5%;
+}
+
+.origin {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background-color: white;
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-size: 0.8rem;
+}
+
+.grid-line {
+  position: absolute;
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.grid-line.vertical {
+  width: 1px;
+  height: 100%;
+}
+
+.grid-line.horizontal {
+  width: 100%;
+  height: 1px;
+}
+
+.point {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background-color: #e74c3c;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.point::after {
+  content: attr(data-point);
+  position: absolute;
+  top: -25px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 0.8rem;
+  background-color: white;
+  padding: 2px 5px;
+  border-radius: 3px;
+  border: 1px solid #ddd;
+}
+
+.graph-line {
+  position: absolute;
+  height: 2px;
+  background-color: #3498db;
+  transform-origin: 0 0;
+}
+
+.back-btn {
+  padding: 10px 20px;
+  background-color: #7f8c8d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 20px;
+}
+
+.back-btn:hover {
+  background-color: #95a5a6;
 }
 
 .question-progress {
@@ -543,6 +992,15 @@ export default {
 }
 
 @media (max-width: 600px) {
+  .topic-selector {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .equation-input {
+    flex-direction: column;
+  }
+  
   .question-actions {
     flex-direction: column;
   }

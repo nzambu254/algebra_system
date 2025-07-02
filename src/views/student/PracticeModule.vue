@@ -42,7 +42,7 @@
           </div>
         </div>
         
-        <div v-if="equationData.points.length > 0" class="graph-table">
+        <div v-if="visiblePoints.length > 0" class="graph-table">
           <table>
             <thead>
               <tr>
@@ -52,7 +52,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(point, index) in equationData.points" :key="index">
+              <tr v-for="(point, index) in visiblePoints" :key="index">
                 <td>{{ point.x }}</td>
                 <td>{{ point.y.toFixed(2) }}</td>
                 <td>({{ point.x }}, {{ point.y.toFixed(2) }})</td>
@@ -63,33 +63,42 @@
         
         <div class="graph-visualization">
           <div class="graph-axis">
+            <!-- Grid lines -->
+            <div v-for="i in [-5, -4, -3, -2, -1, 1, 2, 3, 4, 5]" :key="'x'+i" 
+                 class="grid-line vertical" :style="{ left: 50 + i*8 + '%' }">
+              <span class="grid-label">{{ i }}</span>
+            </div>
+            <div v-for="i in [-5, -4, -3, -2, -1, 1, 2, 3, 4, 5]" :key="'y'+i" 
+                 class="grid-line horizontal" :style="{ top: 50 - i*8 + '%' }">
+              <span class="grid-label">{{ i }}</span>
+            </div>
+            
+            <!-- Main axes -->
             <div class="y-axis"></div>
             <div class="x-axis"></div>
             <div class="origin">0</div>
             
-            <!-- Grid lines -->
-            <div v-for="i in [-5, -4, -3, -2, -1, 1, 2, 3, 4, 5]" :key="'x'+i" 
-                 class="grid-line vertical" :style="{ left: 50 + i*10 + '%' }"></div>
-            <div v-for="i in [-5, -4, -3, -2, -1, 1, 2, 3, 4, 5]" :key="'y'+i" 
-                 class="grid-line horizontal" :style="{ top: 50 - i*10 + '%' }"></div>
+            <!-- SVG for line drawing -->
+            <svg class="graph-svg" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+              <polyline 
+                v-if="svgPoints.length > 1"
+                :points="svgPoints"
+                fill="none"
+                stroke="#2563eb"
+                stroke-width="2"
+              />
+            </svg>
             
             <!-- Points -->
             <div 
-              v-for="(point, index) in equationData.points" 
+              v-for="(point, index) in visiblePoints" 
               :key="'point'+index"
               class="point"
               :style="{
-                left: 50 + (point.x * 10) + '%',
-                top: 50 - (point.y * 10) + '%'
+                left: 50 + (point.x * 8) + '%',
+                top: 50 - (point.y * 8) + '%'
               }"
               :data-point="`(${point.x}, ${point.y.toFixed(2)})`"
-            ></div>
-            
-            <!-- Line -->
-            <div 
-              v-if="equationData.points.length > 1" 
-              class="graph-line" 
-              :style="lineStyle"
             ></div>
           </div>
         </div>
@@ -100,7 +109,6 @@
       </div>
       
       <div v-if="currentQuestion && !showGraph" class="question-container">
-        <!-- Existing question container content remains the same -->
         <div class="question-progress">
           Question {{ currentQuestionIndex + 1 }} of {{ questions.length }}
         </div>
@@ -196,7 +204,7 @@
 </template>
 
 <script>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 export default {
@@ -219,6 +227,7 @@ export default {
     const showGraph = ref(false)
     const userEquation = ref('')
     const equationError = ref('')
+    const windowWidth = ref(window.innerWidth)
     
     const equationData = ref({
       points: [],
@@ -226,84 +235,89 @@ export default {
       intercept: 0
     })
     
-    const lineStyle = computed(() => {
-      if (equationData.value.points.length < 2) return {}
+    const visiblePoints = computed(() => {
+      return equationData.value.points.filter(point => 
+        point.x >= -5 && point.x <= 5 && 
+        point.y >= -5 && point.y <= 5
+      )
+    })
+    
+    const svgPoints = computed(() => {
+      if (visiblePoints.value.length < 2) return ''
       
-      // Get the first and last points
-      const firstPoint = equationData.value.points[0]
-      const lastPoint = equationData.value.points[equationData.value.points.length - 1]
-      
-      // Convert points to graph coordinates
-      const x1 = 50 + (firstPoint.x * 10)
-      const y1 = 50 - (firstPoint.y * 10)
-      const x2 = 50 + (lastPoint.x * 10)
-      const y2 = 50 - (lastPoint.y * 10)
-      
-      // Calculate line length and angle
-      const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2))
-      const angle = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI
-      
-      return {
-        width: `${length}%`,
-        left: `${x1}%`,
-        top: `${y1}%`,
-        transform: `rotate(${angle}deg)`,
-        'transform-origin': '0 0'
-      }
+      return visiblePoints.value.map(point => {
+        const svgX = ((point.x + 5) / 10) * 400
+        const svgY = ((5 - point.y) / 10) * 400
+        return `${svgX},${svgY}`
+      }).join(' ')
     })
     
     const parseEquation = (equation) => {
       equationError.value = ''
-      equation = equation.replace(/\s+/g, '') // Remove all whitespace
+      equation = equation.replace(/\s+/g, '')
       
-      // Handle y = mx + b form
+      // Reset equation data
+      equationData.value = {
+        points: [],
+        slope: 0,
+        intercept: 0
+      }
+      
       if (equation.includes('y=')) {
-        const parts = equation.split('y=')[1].split(/([+-])/)
-        if (parts.length < 1) {
-          equationError.value = 'Invalid equation format. Use y=mx+b or ax+by=c'
-          return false
+        const rightSide = equation.split('y=')[1]
+        
+        if (rightSide === 'x') {
+          equationData.value.slope = 1
+          equationData.value.intercept = 0
+          return true
+        }
+        if (rightSide === '-x') {
+          equationData.value.slope = -1
+          equationData.value.intercept = 0
+          return true
         }
         
-        // Reconstruct parts with operators
-        let mxPart = parts[0]
-        let bPart = parts.length > 1 ? parts[1] + parts[2] : ''
-        
-        // Handle cases like y=2x or y=-3x
-        if (!mxPart.includes('x')) {
-          if (mxPart === '') mxPart = '1x' // y=x case
-          else if (mxPart === '-') mxPart = '-1x' // y=-x case
-          else mxPart += 'x' // y=2 → y=2x
-        }
-        
-        // Extract slope (m)
-        const slopeStr = mxPart.replace('x', '')
         let slope = 0
-        if (slopeStr === '+' || slopeStr === '') slope = 1
-        else if (slopeStr === '-') slope = -1
-        else slope = parseFloat(slopeStr)
-        
-        // Extract intercept (b)
         let intercept = 0
-        if (bPart) {
-          intercept = parseFloat(bPart)
+        const parts = rightSide.split(/([+-])/)
+        let currentTerm = ''
+        let operator = '+'
+        
+        for (let i = 0; i < parts.length; i++) {
+          if (parts[i] === '+' || parts[i] === '-') {
+            if (currentTerm) {
+              if (currentTerm.includes('x')) {
+                const coeff = currentTerm.replace('x', '')
+                if (coeff === '' || coeff === '+') slope += 1
+                else if (coeff === '-') slope -= 1
+                else slope += parseFloat((operator === '-' ? '-' : '') + coeff)
+              } else {
+                intercept += parseFloat((operator === '-' ? '-' : '') + currentTerm)
+              }
+            }
+            operator = parts[i]
+            currentTerm = ''
+          } else {
+            currentTerm = parts[i]
+          }
         }
         
-        equationData.value = {
-          slope,
-          intercept,
-          points: []
+        if (currentTerm) {
+          if (currentTerm.includes('x')) {
+            const coeff = currentTerm.replace('x', '')
+            if (coeff === '' || coeff === '+') slope += (operator === '-' ? -1 : 1)
+            else if (coeff === '-') slope -= 1
+            else slope += parseFloat((operator === '-' ? '-' : '') + coeff)
+          } else {
+            intercept += parseFloat((operator === '-' ? '-' : '') + currentTerm)
+          }
         }
+        
+        equationData.value.slope = slope
+        equationData.value.intercept = intercept
         return true
       }
-      // Handle ax + by = c form
-      else if (equation.includes('x') && equation.includes('y')) {
-        const parts = equation.split(/([+-])/)
-        if (parts.length < 3) {
-          equationError.value = 'Invalid equation format. Use y=mx+b or ax+by=c'
-          return false
-        }
-        
-        let a = 0, b = 0, c = 0
+      else if (equation.includes('x') && equation.includes('y') && equation.includes('=')) {
         const equationParts = equation.split('=')
         if (equationParts.length !== 2) {
           equationError.value = 'Equation must contain exactly one equals sign (=)'
@@ -311,33 +325,41 @@ export default {
         }
         
         const leftSide = equationParts[0]
-        c = parseFloat(equationParts[1])
+        const c = parseFloat(equationParts[1])
         
-        // Extract coefficients
-        const xMatch = leftSide.match(/([+-]?\d*)x/)
-        const yMatch = leftSide.match(/([+-]?\d*)y/)
+        const xMatch = leftSide.match(/([+-]?\d*\.?\d*)x/)
+        const yMatch = leftSide.match(/([+-]?\d*\.?\d*)y/)
         
-        a = xMatch ? parseFloat(xMatch[1] || (xMatch[1] === '-' ? -1 : 1)) : 0
-        b = yMatch ? parseFloat(yMatch[1] || (yMatch[1] === '-' ? -1 : 1)) : 0
+        let a = 0, b = 0
+        
+        if (xMatch) {
+          const coeff = xMatch[1]
+          if (coeff === '' || coeff === '+') a = 1
+          else if (coeff === '-') a = -1
+          else a = parseFloat(coeff)
+        }
+        
+        if (yMatch) {
+          const coeff = yMatch[1]
+          if (coeff === '' || coeff === '+') b = 1
+          else if (coeff === '-') b = -1
+          else b = parseFloat(coeff)
+        }
         
         if (b === 0) {
-          equationError.value = 'Invalid equation: y coefficient cannot be zero'
+          equationError.value = 'Invalid equation: y coefficient cannot be zero for linear equations'
           return false
         }
         
-        // Convert to slope-intercept form
         const slope = -a / b
         const intercept = c / b
         
-        equationData.value = {
-          slope,
-          intercept,
-          points: []
-        }
+        equationData.value.slope = slope
+        equationData.value.intercept = intercept
         return true
       }
       else {
-        equationError.value = 'Unsupported equation format. Use y=mx+b or ax+by=c'
+        equationError.value = 'Invalid equation format. Use y=mx+b or ax+by=c'
         return false
       }
     }
@@ -346,8 +368,7 @@ export default {
       const points = []
       const { slope, intercept } = equationData.value
       
-      // Calculate y for x values from -5 to 5
-      for (let x = -5; x <= 5; x++) {
+      for (let x = -10; x <= 10; x += 0.5) {
         const y = slope * x + intercept
         points.push({ x, y })
       }
@@ -356,7 +377,7 @@ export default {
     }
     
     const plotEquation = () => {
-      if (!userEquation.value) {
+      if (!userEquation.value.trim()) {
         equationError.value = 'Please enter an equation'
         return
       }
@@ -366,8 +387,12 @@ export default {
       }
     }
     
+    const plotSampleEquation = () => {
+      userEquation.value = 'y = 2x + 1'
+      plotEquation()
+    }
+    
     const generateQuestions = (topic) => {
-      // In a real app, you would fetch these from a database
       if (topic === 'linear-equations') {
         return [
           {
@@ -436,10 +461,10 @@ export default {
     })
     
     const isAnswerCorrect = computed(() => {
-      if (currentQuestion.value.type === 'multiple-choice') {
+      if (currentQuestion.value?.type === 'multiple-choice') {
         return selectedAnswer.value === currentQuestion.value.correctAnswer
       } else {
-        return userInput.value === currentQuestion.value.correctAnswer.toString()
+        return userInput.value === currentQuestion.value?.correctAnswer.toString()
       }
     })
     
@@ -505,18 +530,35 @@ export default {
         slope: 0,
         intercept: 0
       }
+      setTimeout(plotSampleEquation, 300)
     }
     
     const hideGraph = () => {
       showGraph.value = false
     }
     
+    const onResize = () => {
+      windowWidth.value = window.innerWidth
+    }
+    
     watch(selectedTopic, (newTopic) => {
       restartPractice()
     })
     
-    // Initialize
-    questions.value = generateQuestions(selectedTopic.value)
+    watch(() => equationData.value.slope, () => {
+      if (equationData.value.slope !== 0 || equationData.value.intercept !== 0) {
+        calculatePoints()
+      }
+    })
+    
+    onMounted(() => {
+      window.addEventListener('resize', onResize)
+      questions.value = generateQuestions(selectedTopic.value)
+    })
+    
+    onUnmounted(() => {
+      window.removeEventListener('resize', onResize)
+    })
     
     return {
       topics,
@@ -535,7 +577,9 @@ export default {
       userEquation,
       equationError,
       equationData,
-      lineStyle,
+      visiblePoints,
+      svgPoints,
+      windowWidth,
       selectAnswer,
       checkAnswer,
       nextQuestion,
@@ -551,109 +595,86 @@ export default {
 
 <style scoped>
 .practice-module {
+  max-width: 1000px;
+  margin: 0 auto;
   padding: 20px;
 }
 
 .module-header {
+  text-align: center;
   margin-bottom: 30px;
 }
 
 .module-header h1 {
-  color: #2c3e50;
+  color: #1f2937;
   margin-bottom: 10px;
 }
 
-.module-header p {
-  color: #7f8c8d;
-  margin: 0;
-}
-
-.practice-content {
-  background: white;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-}
-
 .topic-selector {
-  margin-bottom: 20px;
   display: flex;
-  align-items: center;
   gap: 15px;
+  align-items: center;
+  margin-bottom: 20px;
   flex-wrap: wrap;
 }
 
 .topic-selector label {
-  margin-right: 10px;
-  font-weight: bold;
+  font-weight: 600;
+  color: #374151;
 }
 
 .topic-selector select {
-  padding: 8px 15px;
-  border-radius: 4px;
-  border: 1px solid #ddd;
+  padding: 8px 12px;
+  border: 2px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
 }
 
-.graph-btn {
-  padding: 8px 15px;
-  background-color: #9b59b6;
+.graph-btn, .plot-btn {
+  background: #3b82f6;
   color: white;
   border: none;
-  border-radius: 4px;
+  padding: 10px 16px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: background-color 0.3s;
+  font-weight: 500;
 }
 
-.graph-btn:hover {
-  background-color: #8e44ad;
+.graph-btn:hover, .plot-btn:hover {
+  background: #2563eb;
 }
 
 .graph-container {
-  margin-top: 20px;
+  background: #f9fafb;
   padding: 20px;
-  border: 1px solid #eee;
   border-radius: 8px;
-  background-color: #f9f9f9;
+  margin-bottom: 20px;
 }
 
 .graph-instructions {
   margin-bottom: 20px;
-  padding: 15px;
-  background-color: #f0f0f0;
-  border-radius: 4px;
 }
 
 .equation-input {
   display: flex;
   gap: 10px;
-  margin-top: 10px;
+  margin: 10px 0;
+  flex-wrap: wrap;
 }
 
 .equation-input input {
   flex: 1;
   padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 1rem;
-}
-
-.plot-btn {
-  padding: 10px 20px;
-  background-color: #3498db;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.plot-btn:hover {
-  background-color: #2980b9;
+  border: 2px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  min-width: 200px;
 }
 
 .error-message {
-  color: #e74c3c;
+  color: #dc2626;
+  font-weight: 500;
   margin-top: 10px;
-  font-weight: bold;
 }
 
 .graph-table {
@@ -664,169 +685,237 @@ export default {
 .graph-table table {
   width: 100%;
   border-collapse: collapse;
+  background: white;
+  border-radius: 6px;
+  overflow: hidden;
 }
 
 .graph-table th, .graph-table td {
-  border: 1px solid #ddd;
   padding: 8px 12px;
-  text-align: left;
+  text-align: center;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .graph-table th {
-  background-color: #f2f2f2;
+  background: #f3f4f6;
+  font-weight: 600;
 }
 
 .graph-visualization {
-  margin: 30px 0;
-  position: relative;
-  height: 400px;
-  border: 1px solid #ddd;
-  background-color: white;
+  margin: 20px 0;
+  display: flex;
+  justify-content: center;
 }
 
 .graph-axis {
   position: relative;
   width: 100%;
-  height: 100%;
-}
-
-.x-axis {
-  position: absolute;
-  width: 90%;
-  height: 2px;
-  background-color: #333;
-  left: 5%;
-  top: 50%;
-}
-
-.y-axis {
-  position: absolute;
-  width: 2px;
-  height: 90%;
-  background-color: #333;
-  left: 50%;
-  top: 5%;
-}
-
-.origin {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  background-color: white;
-  padding: 2px 5px;
-  border-radius: 3px;
-  font-size: 0.8rem;
+  max-width: 400px;
+  height: 400px;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 0 auto;
 }
 
 .grid-line {
   position: absolute;
-  background-color: rgba(0, 0, 0, 0.1);
+  background: #f3f4f6;
 }
 
 .grid-line.vertical {
   width: 1px;
   height: 100%;
+  top: 0;
 }
 
 .grid-line.horizontal {
-  width: 100%;
   height: 1px;
+  width: 100%;
+  left: 0;
+}
+
+.grid-label {
+  position: absolute;
+  font-size: 10px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.grid-line.vertical .grid-label {
+  bottom: -15px;
+  left: -8px;
+}
+
+.grid-line.horizontal .grid-label {
+  left: -15px;
+  top: -8px;
+}
+
+.y-axis {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  background: #374151;
+  transform: translateX(-50%);
+}
+
+.y-axis::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 10px solid #374151;
+}
+
+.x-axis {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: #374151;
+  transform: translateY(-50%);
+}
+
+.x-axis::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-left: 10px solid #374151;
+}
+
+.origin {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  padding: 2px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  z-index: 10;
+}
+
+.graph-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 
 .point {
   position: absolute;
   width: 8px;
   height: 8px;
-  background-color: #e74c3c;
+  background: #dc2626;
   border-radius: 50%;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%) scale(1);
+  z-index: 5;
+  cursor: pointer;
+  transition: all 0.3s ease;
 }
 
-.point::after {
+.point:hover {
+  transform: translate(-50%, -50%) scale(1.5);
+}
+
+.point:hover::after {
   content: attr(data-point);
   position: absolute;
   top: -25px;
   left: 50%;
   transform: translateX(-50%);
+  background: #374151;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
   white-space: nowrap;
-  font-size: 0.8rem;
-  background-color: white;
-  padding: 2px 5px;
-  border-radius: 3px;
-  border: 1px solid #ddd;
-}
-
-.graph-line {
-  position: absolute;
-  height: 2px;
-  background-color: #3498db;
-  transform-origin: 0 0;
+  z-index: 20;
 }
 
 .back-btn {
-  padding: 10px 20px;
-  background-color: #7f8c8d;
+  background: #6b7280;
   color: white;
   border: none;
-  border-radius: 4px;
+  padding: 10px 16px;
+  border-radius: 6px;
   cursor: pointer;
   margin-top: 20px;
 }
 
 .back-btn:hover {
-  background-color: #95a5a6;
+  background: #4b5563;
+}
+
+.question-container {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .question-progress {
-  color: #7f8c8d;
-  font-size: 0.9rem;
-  margin-bottom: 10px;
-}
-
-.question-card {
-  border: 1px solid #eee;
-  border-radius: 8px;
-  padding: 20px;
+  color: #6b7280;
+  font-size: 14px;
+  margin-bottom: 15px;
 }
 
 .question-card h3 {
-  margin-top: 0;
-  color: #2c3e50;
+  color: #1f2937;
+  margin-bottom: 20px;
 }
 
 .options {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
-  margin: 20px 0;
 }
 
 .option {
-  padding: 12px 15px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  padding: 12px 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .option:hover {
-  background-color: #f5f5f5;
+  border-color: #3b82f6;
+  background: #eff6ff;
 }
 
 .option.selected {
-  border-color: #3498db;
-  background-color: #e1f0fa;
+  border-color: #3b82f6;
+  background: #dbeafe;
 }
 
 .option.correct {
-  border-color: #2ecc71;
-  background-color: #e8f8f0;
+  border-color: #10b981;
+  background: #d1fae5;
 }
 
 .option.incorrect {
-  border-color: #e74c3c;
-  background-color: #fbe9e7;
+  border-color: #ef4444;
+  background: #fee2e2;
 }
 
 .input-answer {
@@ -835,179 +924,170 @@ export default {
 
 .input-answer input {
   width: 100%;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 1rem;
+  padding: 12px;
+  border: 2px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 16px;
 }
 
 .correct-answer {
   display: block;
   margin-top: 10px;
-  color: #2ecc71;
-  font-weight: bold;
+  color: #059669;
+  font-weight: 500;
 }
 
 .feedback {
   margin: 20px 0;
   padding: 15px;
-  border-radius: 4px;
-  background-color: #f8f9fa;
+  border-radius: 6px;
 }
 
 .correct-feedback {
-  color: #2ecc71;
-  font-weight: bold;
-  margin: 0 0 10px 0;
+  color: #059669;
+  font-weight: 600;
 }
 
 .incorrect-feedback {
-  color: #e74c3c;
-  font-weight: bold;
-  margin: 0 0 10px 0;
+  color: #dc2626;
+  font-weight: 600;
 }
 
 .explanation {
-  margin: 0;
-  color: #7f8c8d;
+  color: #374151;
+  margin-top: 10px;
 }
 
 .question-actions {
   display: flex;
-  justify-content: flex-end;
   gap: 10px;
   margin-top: 20px;
 }
 
-.submit-btn {
-  padding: 10px 20px;
-  background-color: #3498db;
-  color: white;
+.submit-btn, .next-btn {
+  padding: 12px 24px;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
+  font-weight: 600;
   cursor: pointer;
 }
 
+.submit-btn {
+  background: #3b82f6;
+  color: white;
+}
+
 .submit-btn:disabled {
-  background-color: #bdc3c7;
+  background: #9ca3af;
   cursor: not-allowed;
 }
 
 .next-btn {
-  padding: 10px 20px;
-  background-color: #2ecc71;
+  background: #10b981;
   color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
 }
 
 .results-container {
   text-align: center;
-  padding: 20px;
-}
-
-.results-container h2 {
-  color: #2c3e50;
-  margin-bottom: 20px;
-}
-
-.score-display {
-  margin: 30px 0;
+  background: white;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .score-circle {
-  width: 120px;
-  height: 120px;
-  margin: 0 auto 15px;
+  width: 100px;
+  height: 100px;
   border-radius: 50%;
-  background: #3498db;
+  background: #3b82f6;
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 2rem;
+  font-size: 24px;
   font-weight: bold;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-.score-display p {
-  font-size: 1.2rem;
-  color: #7f8c8d;
+  margin: 0 auto 20px;
 }
 
 .topic-performance {
-  margin: 30px auto;
-  max-width: 500px;
-}
-
-.topic-performance h3 {
-  color: #2c3e50;
-  margin-bottom: 15px;
+  margin: 20px 0;
 }
 
 .performance-bar {
+  width: 100%;
   height: 20px;
-  background: #ecf0f1;
+  background: #e5e7eb;
   border-radius: 10px;
   overflow: hidden;
+  margin-top: 10px;
 }
 
 .performance-fill {
   height: 100%;
-  background: #2ecc71;
-  transition: width 0.5s ease;
+  background: #10b981;
+  transition: width 0.3s ease;
+}
+
+.restart-btn, .learn-btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  margin: 0 10px;
+  font-weight: 600;
 }
 
 .restart-btn {
-  padding: 12px 25px;
-  background-color: #3498db;
+  background: #3b82f6;
   color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 1rem;
-  margin: 10px;
-  transition: background-color 0.3s;
-}
-
-.restart-btn:hover {
-  background-color: #2980b9;
 }
 
 .learn-btn {
-  padding: 12px 25px;
-  background-color: #2ecc71;
+  background: #10b981;
   color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 1rem;
-  margin: 10px;
-  transition: background-color 0.3s;
 }
 
-.learn-btn:hover {
-  background-color: #27ae60;
-}
-
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .topic-selector {
     flex-direction: column;
     align-items: flex-start;
+  }
+  
+  .graph-btn {
+    margin-left: 0;
+    width: 100%;
   }
   
   .equation-input {
     flex-direction: column;
   }
   
+  .equation-input input {
+    width: 100%;
+  }
+  
+  .graph-axis {
+    height: 300px;
+  }
+  
   .question-actions {
     flex-direction: column;
   }
   
-  .submit-btn,
-  .next-btn {
+  .restart-btn, .learn-btn {
+    margin: 5px 0;
     width: 100%;
   }
+}
+
+.plot-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.topic-selector select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px #bfdbfe;
 }
 </style>

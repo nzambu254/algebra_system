@@ -88,21 +88,25 @@ export default {
 <style scoped>
 .sidebar {
   width: 250px;
-  background-color: #34495e;
+  background-color: #030303;
   color: white;
   height: 100vh;
   position: sticky;
   top: 0;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
 }
 
 .sidebar-header {
   padding: 20px;
-  border-bottom: 1px solid #2c3e50;
+  border-bottom: 1px solid #40456a;
+  background-color: #1a1b2e;
 }
 
 .sidebar-header h3 {
   margin: 0;
   font-size: 1.2rem;
+  color: #f8f9fa;
+  font-weight: 600;
 }
 
 .sidebar-nav {
@@ -113,17 +117,22 @@ export default {
   display: flex;
   align-items: center;
   padding: 12px 20px;
-  color: #ecf0f1;
+  color: #e9ecef;
   text-decoration: none;
-  transition: background-color 0.3s;
+  transition: all 0.3s ease;
+  margin: 0 10px;
+  border-radius: 6px;
 }
 
 .nav-link:hover {
-  background-color: #2c3e50;
+  background-color: #40456a;
+  transform: translateX(5px);
 }
 
 .nav-link.router-link-exact-active {
-  background-color: #3498db;
+  background-color: #4361ee;
+  box-shadow: 0 4px 6px -1px rgba(67, 97, 238, 0.3);
+  font-weight: 500;
 }
 
 .icon {
@@ -133,5 +142,16 @@ export default {
 
 .text {
   font-size: 0.95rem;
+}
+
+/* Animation for active link */
+.nav-link.router-link-exact-active::after {
+  content: '';
+  position: absolute;
+  right: 20px;
+  width: 8px;
+  height: 8px;
+  background-color: white;
+  border-radius: 50%;
 }
 </style>

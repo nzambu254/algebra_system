@@ -1,7 +1,7 @@
 <template>
   <nav class="top-navbar">
     <div class="navbar-brand">Algebra Graphical Solver</div>
-    
+         
     <div class="navbar-right">
       <div v-if="user" class="user-info">
         <span class="user-email">{{ user.email }}</span>
@@ -29,7 +29,7 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 15px 30px;
-  background-color: #2c3e50;
+  background-color: #0a0a0a;
   color: white;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }

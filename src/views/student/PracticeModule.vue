@@ -146,6 +146,13 @@
                 rows="3"
               ></textarea>
             </div>
+            <button 
+              v-if="!showFeedback" 
+              @click="toggleWorkArea" 
+              class="work-btn"
+            >
+              {{ showWorkArea ? 'Hide Work' : 'Show Work' }}
+            </button>
             <span v-if="showFeedback" class="correct-answer">
               Correct answer: {{ currentQuestion.correctAnswer }}
             </span>
@@ -173,13 +180,6 @@
               :disabled="selectedAnswer === null && !userInput"
             >
               Submit
-            </button>
-            <button 
-              v-if="!showFeedback && currentQuestion.type === 'input'" 
-              @click="toggleWorkArea" 
-              class="work-btn"
-            >
-              {{ showWorkArea ? 'Hide Work' : 'Show Work' }}
             </button>
             <button 
               @click="nextQuestion" 

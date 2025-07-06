@@ -139,6 +139,13 @@
               placeholder="Enter your answer..."
               :disabled="showFeedback"
             >
+            <div v-if="showWorkArea" class="work-area">
+              <textarea 
+                v-model="userWork" 
+                placeholder="Show your work here (optional)..."
+                rows="3"
+              ></textarea>
+            </div>
             <span v-if="showFeedback" class="correct-answer">
               Correct answer: {{ currentQuestion.correctAnswer }}
             </span>
@@ -152,6 +159,10 @@
               ❌ Incorrect. Try again!
             </p>
             <p class="explanation">{{ currentQuestion.explanation }}</p>
+            <div v-if="userWork" class="user-work-display">
+              <h4>Your Work:</h4>
+              <p>{{ userWork }}</p>
+            </div>
           </div>
           
           <div class="question-actions">
@@ -162,6 +173,13 @@
               :disabled="selectedAnswer === null && !userInput"
             >
               Submit
+            </button>
+            <button 
+              v-if="!showFeedback && currentQuestion.type === 'input'" 
+              @click="toggleWorkArea" 
+              class="work-btn"
+            >
+              {{ showWorkArea ? 'Hide Work' : 'Show Work' }}
             </button>
             <button 
               @click="nextQuestion" 
@@ -192,12 +210,52 @@
           </div>
         </div>
         
-        <button @click="restartPractice" class="restart-btn">
-          Practice Again
-        </button>
-        <button @click="goToLearn" class="learn-btn">
-          Review Topic
-        </button>
+        <div class="performance-reports">
+          <h3>Performance Reports</h3>
+          <div class="reports-grid">
+            <div class="report-card" @click="generateReport('summary')">
+              <div class="report-icon">📊</div>
+              <h4>Summary Report</h4>
+              <p>Overview of your performance</p>
+            </div>
+            <div class="report-card" @click="generateReport('detailed')">
+              <div class="report-icon">📝</div>
+              <h4>Detailed Report</h4>
+              <p>Question-by-question analysis</p>
+            </div>
+            <div class="report-card" @click="generateReport('improvement')">
+              <div class="report-icon">📈</div>
+              <h4>Improvement Plan</h4>
+              <p>Personalized study recommendations</p>
+            </div>
+          </div>
+          
+          <div v-if="reportReady" class="report-actions">
+            <button @click="downloadReport" class="download-btn">
+              Download PDF Report
+            </button>
+            <button @click="viewReport" class="view-btn">
+              View Report
+            </button>
+          </div>
+          
+          <div v-if="reportContent" class="report-preview">
+            <div class="report-header">
+              <h3>{{ reportTitle }}</h3>
+              <p>Generated on {{ new Date().toLocaleDateString() }}</p>
+            </div>
+            <div class="report-body" v-html="reportContent"></div>
+          </div>
+        </div>
+        
+        <div class="result-actions">
+          <button @click="restartPractice" class="restart-btn">
+            Practice Again
+          </button>
+          <button @click="goToLearn" class="learn-btn">
+            Review Topic
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -206,6 +264,7 @@
 <script>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import html2pdf from 'html2pdf.js'
 
 export default {
   setup() {
@@ -221,6 +280,8 @@ export default {
     const currentQuestionIndex = ref(0)
     const selectedAnswer = ref(null)
     const userInput = ref('')
+    const userWork = ref('')
+    const showWorkArea = ref(false)
     const showFeedback = ref(false)
     const correctAnswers = ref(0)
     const practiceCompleted = ref(false)
@@ -228,6 +289,12 @@ export default {
     const userEquation = ref('')
     const equationError = ref('')
     const windowWidth = ref(window.innerWidth)
+    
+    // Report related states
+    const reportReady = ref(false)
+    const reportContent = ref('')
+    const reportTitle = ref('')
+    const sessionHistory = ref([])
     
     const equationData = ref({
       points: [],
@@ -478,11 +545,29 @@ export default {
       }
     }
     
+    const toggleWorkArea = () => {
+      showWorkArea.value = !showWorkArea.value
+    }
+    
     const checkAnswer = () => {
       showFeedback.value = true
       if (isAnswerCorrect.value) {
         correctAnswers.value++
       }
+      
+      // Record the question and answer in session history
+      sessionHistory.value.push({
+        question: currentQuestion.value.text,
+        userAnswer: currentQuestion.value.type === 'multiple-choice' 
+          ? currentQuestion.value.options[selectedAnswer.value]
+          : userInput.value,
+        correctAnswer: currentQuestion.value.type === 'multiple-choice'
+          ? currentQuestion.value.options[currentQuestion.value.correctAnswer]
+          : currentQuestion.value.correctAnswer,
+        isCorrect: isAnswerCorrect.value,
+        userWork: userWork.value,
+        explanation: currentQuestion.value.explanation
+      })
     }
     
     const nextQuestion = () => {
@@ -494,6 +579,8 @@ export default {
           currentQuestionIndex.value++
           selectedAnswer.value = null
           userInput.value = ''
+          userWork.value = ''
+          showWorkArea.value = false
           showFeedback.value = false
         }
       }
@@ -504,6 +591,8 @@ export default {
       currentQuestionIndex.value = 0
       selectedAnswer.value = null
       userInput.value = ''
+      userWork.value = ''
+      showWorkArea.value = false
       showFeedback.value = false
       correctAnswers.value = 0
       practiceCompleted.value = false
@@ -515,6 +604,9 @@ export default {
         slope: 0,
         intercept: 0
       }
+      reportReady.value = false
+      reportContent.value = ''
+      sessionHistory.value = []
     }
     
     const goToLearn = () => {
@@ -535,6 +627,170 @@ export default {
     
     const hideGraph = () => {
       showGraph.value = false
+    }
+    
+    const generateReport = (type) => {
+      reportReady.value = true
+      
+      switch(type) {
+        case 'summary':
+          reportTitle.value = 'Performance Summary Report'
+          reportContent.value = `
+            <h4>Topic: ${topics.value.find(t => t.id === selectedTopic.value).title}</h4>
+            <p>Date: ${new Date().toLocaleDateString()}</p>
+            <p>Total Questions: ${questions.value.length}</p>
+            <p>Correct Answers: ${correctAnswers.value}</p>
+            <p>Score: ${Math.round((correctAnswers.value / questions.value.length) * 100)}%</p>
+            <div class="performance-chart">
+              <div style="background:#10b981;height:20px;width:${(correctAnswers.value / questions.value.length) * 100}%"></div>
+            </div>
+            <h4>Strengths:</h4>
+            <ul>
+              <li>Demonstrated good understanding of basic concepts</li>
+              <li>Showed improvement throughout the session</li>
+            </ul>
+            <h4>Areas for Improvement:</h4>
+            <ul>
+              <li>Practice more complex problems</li>
+              <li>Review foundational concepts</li>
+            </ul>
+          `
+          break
+          
+        case 'detailed':
+          reportTitle.value = 'Detailed Performance Report'
+          let detailedContent = `
+            <h4>Topic: ${topics.value.find(t => t.id === selectedTopic.value).title}</h4>
+            <p>Date: ${new Date().toLocaleDateString()}</p>
+            <p>Total Questions: ${questions.value.length}</p>
+            <p>Correct Answers: ${correctAnswers.value}</p>
+            <p>Score: ${Math.round((correctAnswers.value / questions.value.length) * 100)}%</p>
+            <h4>Question Breakdown:</h4>
+          `
+          
+          sessionHistory.value.forEach((item, index) => {
+            detailedContent += `
+              <div class="question-breakdown">
+                <h5>Question ${index + 1}: ${item.question}</h5>
+                <p>Your Answer: <span class="${item.isCorrect ? 'correct-text' : 'incorrect-text'}">${item.userAnswer}</span></p>
+                <p>Correct Answer: ${item.correctAnswer}</p>
+                ${item.userWork ? `<p>Your Work: ${item.userWork}</p>` : ''}
+                <p>Explanation: ${item.explanation}</p>
+              </div>
+              <hr>
+            `
+          })
+          
+          reportContent.value = detailedContent
+          break
+          
+        case 'improvement':
+          reportTitle.value = 'Personalized Improvement Plan'
+          reportContent.value = `
+            <h4>Topic: ${topics.value.find(t => t.id === selectedTopic.value).title}</h4>
+            <p>Date: ${new Date().toLocaleDateString()}</p>
+            <p>Based on your performance, here are some recommendations:</p>
+            <h4>Recommended Study Plan:</h4>
+            <ol>
+              <li>Review fundamental concepts for 30 minutes daily</li>
+              <li>Practice 5 problems from each weak area</li>
+              <li>Watch tutorial videos on challenging topics</li>
+              <li>Attempt mixed practice tests weekly</li>
+            </ol>
+            <h4>Resources:</h4>
+            <ul>
+              <li>Algebra Fundamentals Textbook - Chapter 3-5</li>
+              <li>Online Practice Modules - Linear Equations</li>
+              <li>Video Tutorials: Solving Equations Step-by-Step</li>
+            </ul>
+            <h4>Study Schedule:</h4>
+            <table class="study-schedule">
+              <tr><th>Day</th><th>Activity</th><th>Duration</th></tr>
+              <tr><td>Monday</td><td>Concept Review</td><td>30 min</td></tr>
+              <tr><td>Wednesday</td><td>Practice Problems</td><td>45 min</td></tr>
+              <tr><td>Friday</td><td>Mixed Test</td><td>60 min</td></tr>
+            </table>
+          `
+          break
+      }
+    }
+    
+    const downloadReport = () => {
+      const element = document.createElement('div')
+      element.innerHTML = `
+        <style>
+          .report-pdf {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+          }
+          .report-header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #3b82f6;
+            padding-bottom: 10px;
+          }
+          .report-body {
+            margin-top: 20px;
+          }
+          .performance-chart {
+            height: 20px;
+            background: #e5e7eb;
+            margin: 10px 0;
+            border-radius: 10px;
+            overflow: hidden;
+          }
+          .question-breakdown {
+            margin: 15px 0;
+          }
+          .correct-text {
+            color: #10b981;
+            font-weight: bold;
+          }
+          .incorrect-text {
+            color: #ef4444;
+            font-weight: bold;
+          }
+          .study-schedule {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+          }
+          .study-schedule th, .study-schedule td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+          }
+          .study-schedule th {
+            background-color: #f3f4f6;
+          }
+        </style>
+        <div class="report-pdf">
+          <div class="report-header">
+            <h2>${reportTitle.value}</h2>
+            <p>Generated on ${new Date().toLocaleDateString()}</p>
+          </div>
+          <div class="report-body">
+            ${reportContent.value}
+          </div>
+        </div>
+      `
+      
+      const opt = {
+        margin: 10,
+        filename: `${reportTitle.value.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0,10)}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      }
+      
+      html2pdf().from(element).set(opt).save()
+    }
+    
+    const viewReport = () => {
+      // In a real app, you might open this in a modal or new tab
+      console.log("Viewing report:", reportContent.value)
     }
     
     const onResize = () => {
@@ -568,6 +824,8 @@ export default {
       currentQuestionIndex,
       selectedAnswer,
       userInput,
+      userWork,
+      showWorkArea,
       showFeedback,
       isAnswerCorrect,
       isLastQuestion,
@@ -580,14 +838,21 @@ export default {
       visiblePoints,
       svgPoints,
       windowWidth,
+      reportReady,
+      reportContent,
+      reportTitle,
       selectAnswer,
       checkAnswer,
       nextQuestion,
+      toggleWorkArea,
       restartPractice,
       goToLearn,
       showGraphExample,
       hideGraph,
-      plotEquation
+      plotEquation,
+      generateReport,
+      downloadReport,
+      viewReport
     }
   }
 }
@@ -930,6 +1195,20 @@ export default {
   font-size: 16px;
 }
 
+.work-area {
+  margin-top: 15px;
+}
+
+.work-area textarea {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  resize: vertical;
+  min-height: 80px;
+}
+
 .correct-answer {
   display: block;
   margin-top: 10px;
@@ -941,6 +1220,7 @@ export default {
   margin: 20px 0;
   padding: 15px;
   border-radius: 6px;
+  background: #f9fafb;
 }
 
 .correct-feedback {
@@ -958,13 +1238,26 @@ export default {
   margin-top: 10px;
 }
 
+.user-work-display {
+  margin-top: 15px;
+  padding: 10px;
+  background: #f3f4f6;
+  border-radius: 6px;
+}
+
+.user-work-display h4 {
+  margin-bottom: 5px;
+  color: #1f2937;
+}
+
 .question-actions {
   display: flex;
   gap: 10px;
   margin-top: 20px;
+  flex-wrap: wrap;
 }
 
-.submit-btn, .next-btn {
+.submit-btn, .next-btn, .work-btn {
   padding: 12px 24px;
   border: none;
   border-radius: 6px;
@@ -987,12 +1280,21 @@ export default {
   color: white;
 }
 
+.work-btn {
+  background: #f59e0b;
+  color: white;
+}
+
 .results-container {
   text-align: center;
   background: white;
   padding: 30px;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.score-display {
+  margin-bottom: 30px;
 }
 
 .score-circle {
@@ -1028,12 +1330,118 @@ export default {
   transition: width 0.3s ease;
 }
 
+.performance-reports {
+  margin: 30px 0;
+  text-align: left;
+}
+
+.reports-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+  margin: 20px 0;
+}
+
+.report-card {
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 1px solid #e5e7eb;
+}
+
+.report-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  border-color: #3b82f6;
+}
+
+.report-icon {
+  font-size: 32px;
+  margin-bottom: 10px;
+}
+
+.report-card h4 {
+  color: #1f2937;
+  margin-bottom: 5px;
+}
+
+.report-card p {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.report-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin: 20px 0;
+}
+
+.download-btn, .view-btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.download-btn {
+  background: #3b82f6;
+  color: white;
+}
+
+.view-btn {
+  background: #10b981;
+  color: white;
+}
+
+.report-preview {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 20px;
+  text-align: left;
+}
+
+.report-header {
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 10px;
+  margin-bottom: 15px;
+}
+
+.report-header h3 {
+  color: #1f2937;
+}
+
+.report-body {
+  line-height: 1.6;
+}
+
+.report-body h4 {
+  margin-top: 15px;
+  color: #1f2937;
+}
+
+.report-body ul, .report-body ol {
+  margin: 10px 0 10px 20px;
+}
+
+.result-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
 .restart-btn, .learn-btn {
   padding: 12px 24px;
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  margin: 0 10px;
   font-weight: 600;
 }
 
@@ -1077,6 +1485,15 @@ export default {
   .restart-btn, .learn-btn {
     margin: 5px 0;
     width: 100%;
+  }
+  
+  .report-actions {
+    flex-direction: column;
+  }
+  
+  .download-btn, .view-btn {
+    width: 100%;
+    margin: 5px 0;
   }
 }
 

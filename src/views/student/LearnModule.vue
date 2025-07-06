@@ -204,6 +204,67 @@ export default {
             <li><strong>Division</strong>: Polynomial long division or synthetic division</li>
           </ol>
         `
+      },
+      {
+        id: 'functions',
+        title: 'Functions',
+        shortDesc: 'Understanding and graphing functions',
+        icon: '📉',
+        progress: 20,
+        video: 'https://www.youtube.com/watch?v=52tpYl2tTqk',
+        content: `
+          <h3>Understanding Functions</h3>
+          <p>A function is a relation between a set of inputs (domain) and a set of permissible outputs (range) with the property that each input is related to exactly one output.</p>
+          <p>Function notation:</p>
+          <p class="equation">f(x) = ...</p>
+          <h3>Types of Functions</h3>
+          <ul>
+            <li><strong>Linear Functions</strong>: f(x) = mx + b</li>
+            <li><strong>Quadratic Functions</strong>: f(x) = ax² + bx + c</li>
+            <li><strong>Polynomial Functions</strong>: f(x) = aₙxⁿ + ... + a₁x + a₀</li>
+            <li><strong>Exponential Functions</strong>: f(x) = a·bˣ</li>
+            <li><strong>Logarithmic Functions</strong>: f(x) = logₐx</li>
+          </ul>
+          <h3>Graphing Functions</h3>
+          <p>Key aspects to consider when graphing functions:</p>
+          <ol>
+            <li><strong>Domain and Range</strong>: The set of possible x and y values</li>
+            <li><strong>Intercepts</strong>: Points where the graph crosses the axes</li>
+            <li><strong>Asymptotes</strong>: Lines that the graph approaches but never touches</li>
+            <li><strong>Transformations</strong>: Shifts, stretches, and reflections of basic graphs</li>
+          </ol>
+        `
+      },
+      {
+        id: 'systems-equations',
+        title: 'Systems of Equations',
+        shortDesc: 'Solving multiple equations simultaneously',
+        icon: '🧩',
+        progress: 10,
+        video: 'https://www.youtube.com/embed/HJV_HY0Sh0s',
+        content: `
+          <h3>Understanding Systems of Equations</h3>
+          <p>A system of equations is a set of two or more equations with the same variables. The solution is the set of values that satisfies all equations simultaneously.</p>
+          <p>Example of a linear system:</p>
+          <p class="equation">
+            a₁x + b₁y = c₁<br>
+            a₂x + b₂y = c₂
+          </p>
+          <h3>Methods for Solving Systems</h3>
+          <p>There are several approaches to solve systems of equations:</p>
+          <ol>
+            <li><strong>Graphing</strong>: Plot both equations and find the intersection point</li>
+            <li><strong>Substitution</strong>: Solve one equation for one variable and substitute into the other</li>
+            <li><strong>Elimination</strong>: Add or subtract equations to eliminate a variable</li>
+            <li><strong>Matrices</strong>: Use matrix operations (for more advanced systems)</li>
+          </ol>
+          <h3>Types of Solutions</h3>
+          <ul>
+            <li><strong>One Solution</strong>: The lines intersect at one point (consistent and independent)</li>
+            <li><strong>No Solution</strong>: The lines are parallel (inconsistent)</li>
+            <li><strong>Infinite Solutions</strong>: The lines are identical (consistent and dependent)</li>
+          </ul>
+        `
       }
     ])
     

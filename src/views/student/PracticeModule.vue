@@ -195,9 +195,9 @@
         <h2>Practice Results</h2>
         <div class="score-display">
           <div class="score-circle">
-            {{ Math.round((correctAnswers / questions.length) * 100) }}%
+            {{ totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0 }}%
           </div>
-          <p>You got {{ correctAnswers }} out of {{ questions.length }} correct</p>
+          <p>You got {{ correctAnswers }} out of {{ totalQuestions }} correct</p>
         </div>
         
         <div class="topic-performance">
@@ -205,7 +205,7 @@
           <div class="performance-bar">
             <div 
               class="performance-fill" 
-              :style="{ width: `${(correctAnswers / questions.length) * 100}%` }"
+              :style="{ width: totalQuestions > 0 ? `${(correctAnswers / totalQuestions) * 100}%` : '0%' }"
             ></div>
           </div>
         </div>
@@ -277,6 +277,7 @@ export default {
     
     const selectedTopic = ref('linear-equations')
     const questions = ref([])
+    const totalQuestions = ref(0) // Add this to track total questions
     const currentQuestionIndex = ref(0)
     const selectedAnswer = ref(null)
     const userInput = ref('')
@@ -574,7 +575,7 @@ export default {
       if (showFeedback.value) {
         if (isLastQuestion.value) {
           practiceCompleted.value = true
-          questions.value = []
+          // Don't clear questions array here, just mark as completed
         } else {
           currentQuestionIndex.value++
           selectedAnswer.value = null
@@ -587,7 +588,9 @@ export default {
     }
     
     const restartPractice = () => {
-      questions.value = generateQuestions(selectedTopic.value)
+      const newQuestions = generateQuestions(selectedTopic.value)
+      questions.value = newQuestions
+      totalQuestions.value = newQuestions.length // Update total questions count
       currentQuestionIndex.value = 0
       selectedAnswer.value = null
       userInput.value = ''
@@ -638,11 +641,11 @@ export default {
           reportContent.value = `
             <h4>Topic: ${topics.value.find(t => t.id === selectedTopic.value).title}</h4>
             <p>Date: ${new Date().toLocaleDateString()}</p>
-            <p>Total Questions: ${questions.value.length}</p>
+            <p>Total Questions: ${totalQuestions.value}</p>
             <p>Correct Answers: ${correctAnswers.value}</p>
-            <p>Score: ${Math.round((correctAnswers.value / questions.value.length) * 100)}%</p>
+            <p>Score: ${totalQuestions.value > 0 ? Math.round((correctAnswers.value / totalQuestions.value) * 100) : 0}%</p>
             <div class="performance-chart">
-              <div style="background:#10b981;height:20px;width:${(correctAnswers.value / questions.value.length) * 100}%"></div>
+              <div style="background:#10b981;height:20px;width:${totalQuestions.value > 0 ? (correctAnswers.value / totalQuestions.value) * 100 : 0}%"></div>
             </div>
             <h4>Strengths:</h4>
             <ul>
@@ -662,9 +665,9 @@ export default {
           let detailedContent = `
             <h4>Topic: ${topics.value.find(t => t.id === selectedTopic.value).title}</h4>
             <p>Date: ${new Date().toLocaleDateString()}</p>
-            <p>Total Questions: ${questions.value.length}</p>
+            <p>Total Questions: ${totalQuestions.value}</p>
             <p>Correct Answers: ${correctAnswers.value}</p>
-            <p>Score: ${Math.round((correctAnswers.value / questions.value.length) * 100)}%</p>
+            <p>Score: ${totalQuestions.value > 0 ? Math.round((correctAnswers.value / totalQuestions.value) * 100): 0}%</p>
             <h4>Question Breakdown:</h4>
           `
           
@@ -809,7 +812,9 @@ export default {
     
     onMounted(() => {
       window.addEventListener('resize', onResize)
-      questions.value = generateQuestions(selectedTopic.value)
+      const initialQuestions = generateQuestions(selectedTopic.value)
+      questions.value = initialQuestions
+      totalQuestions.value = initialQuestions.length
     })
     
     onUnmounted(() => {
@@ -820,6 +825,7 @@ export default {
       topics,
       selectedTopic,
       questions,
+      totalQuestions,
       currentQuestion,
       currentQuestionIndex,
       selectedAnswer,

@@ -22,6 +22,13 @@
           <span class="icon">📈</span>
           <span class="text">Student Progress</span>
         </router-link>
+        <router-link to="/admin/AdminNotifications" class="nav-link">
+          <span class="icon">🔔</span>
+          <span class="text">Notifications</span>
+          <span v-if="unreadCount > 0" class="notification-badge">
+            {{ unreadCount }}
+          </span>
+        </router-link>
       </template>
       
       <template v-else>
@@ -41,21 +48,30 @@
           <span class="icon">📊</span>
           <span class="text">My Progress</span>
         </router-link>
+        <router-link to="/student/StudentNotifications" class="nav-link">
+          <span class="icon">🔔</span>
+          <span class="text">Notifications</span>
+          <span v-if="unreadCount > 0" class="notification-badge">
+            {{ unreadCount }}
+          </span>
+        </router-link>
       </template>
     </nav>
   </aside>
 </template>
 
 <script>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { auth } from '../firebase'
-import { doc, getDoc } from 'firebase/firestore'
+import { doc, getDoc, collection, query, where, onSnapshot } from 'firebase/firestore'
 import { db } from '../firebase'
 
 export default {
   name: 'Sidebar',
   setup() {
     const userRole = ref('student') // Default to student
+    const unreadCount = ref(0)
+    let unsubscribeNotifications = null
 
     const fetchUserRole = async () => {
       try {
@@ -70,16 +86,46 @@ export default {
       }
     }
 
+    // Fetch notifications count
+    const setupNotifications = () => {
+      const user = auth.currentUser
+      if (!user) return
+
+      const notificationsRef = collection(db, 'notifications')
+      const q = query(
+        notificationsRef,
+        where('recipientId', '==', user.uid),
+        where('read', '==', false)
+      )
+
+      unsubscribeNotifications = onSnapshot(q, (snapshot) => {
+        unreadCount.value = snapshot.size
+      })
+    }
+
     onMounted(() => {
       fetchUserRole()
+      setupNotifications()
+      
       // Listen for auth state changes
       auth.onAuthStateChanged(() => {
         fetchUserRole()
+        if (unsubscribeNotifications) {
+          unsubscribeNotifications()
+        }
+        setupNotifications()
       })
     })
 
+    onUnmounted(() => {
+      if (unsubscribeNotifications) {
+        unsubscribeNotifications()
+      }
+    })
+
     return {
-      userRole
+      userRole,
+      unreadCount
     }
   }
 }
@@ -122,6 +168,7 @@ export default {
   transition: all 0.3s ease;
   margin: 0 10px;
   border-radius: 6px;
+  position: relative;
 }
 
 .nav-link:hover {
@@ -142,6 +189,19 @@ export default {
 
 .text {
   font-size: 0.95rem;
+}
+
+.notification-badge {
+  background-color: #f56565;
+  color: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  margin-left: auto;
 }
 
 /* Animation for active link */

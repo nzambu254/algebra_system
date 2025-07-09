@@ -4,10 +4,12 @@ import DashboardAdmin from '../views/admin/Dashboard.vue'
 import ManageContent from '../views/admin/ManageContent.vue'
 import ManageUsers from '../views/admin/ManageUsers.vue'
 import StudentProgress from '../views/admin/StudentProgress.vue'
+import AdminNotifications from '../views/admin/AdminNotifications.vue'
 import DashboardStudent from '../views/student/Dashboard.vue'
 import LearnModule from '../views/student/LearnModule.vue'
 import PracticeModule from '../views/student/PracticeModule.vue'
 import MyProgress from '../views/student/MyProgress.vue'
+import StudentNotifications from '../views/student/StudentNotifications.vue'
 import { auth, db } from '../firebase'
 import { doc, getDoc } from 'firebase/firestore'
 
@@ -46,6 +48,12 @@ const routes = [
     component: StudentProgress,
     meta: { requiresAuth: true, requiresAdmin: true }
   },
+  {
+    path: '/admin/AdminNotifications',
+    name: 'AdminNotifications',
+    component: AdminNotifications,
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
   // Student routes
   {
     path: '/student/dashboard',
@@ -69,6 +77,12 @@ const routes = [
     path: '/student/my-progress',
     name: 'MyProgress',
     component: MyProgress,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/student/StudentNotifications',
+    name: 'StudentNotifications',
+    component: StudentNotifications,
     meta: { requiresAuth: true }
   },
   // Auth route

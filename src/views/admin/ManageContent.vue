@@ -4,6 +4,7 @@
     
     <div class="content-actions">
       <button @click="showAddForm = true" class="add-btn">+ Add New Content</button>
+      <button @click="generateReport" class="report-btn">Generate Report</button>
     </div>
     
     <div v-if="showAddForm" class="add-form">
@@ -29,6 +30,37 @@
         <button type="button" @click="cancelAdd" class="cancel-btn">Cancel</button>
       </form>
     </div>
+
+    <div v-if="showReportModal" class="report-modal">
+      <div class="modal-content">
+        <span class="close" @click="showReportModal = false">&times;</span>
+        <h2>Content Report</h2>
+        <div class="report-preview" ref="reportContent">
+          <h3>Content Summary</h3>
+          <p>Generated on: {{ currentDate }}</p>
+          <p>Total Items: {{ content.length }}</p>
+          
+          <h4>Content Breakdown:</h4>
+          <table>
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Type</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in content" :key="item.id">
+                <td>{{ item.title }}</td>
+                <td>{{ item.type }}</td>
+                <td>{{ item.description }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <button @click="downloadPDF" class="download-btn">Download PDF</button>
+      </div>
+    </div>
     
     <div class="content-list">
       <div v-for="item in content" :key="item.id" class="content-item">
@@ -48,11 +80,17 @@
 import { ref, onMounted } from 'vue'
 import { db } from '../../firebase'
 import { collection, getDocs, addDoc, doc, deleteDoc } from 'firebase/firestore'
+import jsPDF from 'jspdf'
+import 'jspdf-autotable'
 
 export default {
   setup() {
     const content = ref([])
     const showAddForm = ref(false)
+    const showReportModal = ref(false)
+    const currentDate = ref(new Date().toLocaleDateString())
+    const reportContent = ref(null)
+
     const newContent = ref({
       title: '',
       type: 'lesson',
@@ -101,6 +139,53 @@ export default {
       newContent.value = { title: '', type: 'lesson', description: '' }
     }
 
+    const generateReport = () => {
+      showReportModal.value = true
+    }
+
+    const downloadPDF = () => {
+      const doc = new jsPDF()
+      
+      // Title
+      doc.setFontSize(18)
+      doc.text('Content Management Report', 105, 20, { align: 'center' })
+      
+      // Date and summary
+      doc.setFontSize(12)
+      doc.text(`Generated on: ${currentDate.value}`, 14, 30)
+      doc.text(`Total Content Items: ${content.value.length}`, 14, 40)
+      
+      // Content breakdown
+      doc.setFontSize(14)
+      doc.text('Content Breakdown:', 14, 50)
+      
+      // Prepare table data
+      const tableData = content.value.map(item => [
+        item.title,
+        item.type,
+        item.description.length > 50 ? item.description.substring(0, 50) + '...' : item.description
+      ])
+      
+      // Add table
+      doc.autoTable({
+        startY: 55,
+        head: [['Title', 'Type', 'Description']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: {
+          fillColor: [41, 128, 185],
+          textColor: 255
+        },
+        alternateRowStyles: {
+          fillColor: [245, 245, 245]
+        },
+        margin: { top: 55 }
+      })
+      
+      // Save the PDF
+      doc.save(`content_report_${new Date().toISOString().slice(0, 10)}.pdf`)
+    }
+
     onMounted(() => {
       fetchContent()
     })
@@ -108,11 +193,16 @@ export default {
     return {
       content,
       showAddForm,
+      showReportModal,
+      currentDate,
+      reportContent,
       newContent,
       addContent,
       deleteItem,
       editItem,
-      cancelAdd
+      cancelAdd,
+      generateReport,
+      downloadPDF
     }
   }
 }
@@ -125,11 +215,22 @@ export default {
 
 .content-actions {
   margin-bottom: 20px;
+  display: flex;
+  gap: 10px;
 }
 
 .add-btn {
   padding: 10px 15px;
   background-color: #3498db;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.report-btn {
+  padding: 10px 15px;
+  background-color: #9b59b6;
   color: white;
   border: none;
   border-radius: 4px;
@@ -184,6 +285,84 @@ export default {
   border: none;
   border-radius: 4px;
   cursor: pointer;
+}
+
+.report-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  width: 80%;
+  max-width: 900px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  position: relative;
+}
+
+.close {
+  position: absolute;
+  top: 10px;
+  right: 20px;
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+  color: #aaa;
+}
+
+.close:hover {
+  color: #333;
+}
+
+.report-preview {
+  margin: 20px 0;
+}
+
+.report-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.report-preview th, .report-preview td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+.report-preview th {
+  background-color: #3498db;
+  color: white;
+}
+
+.report-preview tr:nth-child(even) {
+  background-color: #f2f2f2;
+}
+
+.download-btn {
+  padding: 10px 15px;
+  background-color: #27ae60;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 20px;
+}
+
+.download-btn:hover {
+  background-color: #2ecc71;
 }
 
 .content-list {
